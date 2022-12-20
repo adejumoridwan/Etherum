@@ -1,0 +1,118 @@
+---
+title: "Etherum"
+author: "Name"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# Packages
+```{r}
+library(tidyverse)
+library(fpp2)
+```
+
+
+# Importing Data
+```{r}
+etherum <- read_csv("etherum.csv") |> 
+  rename(ClosingPrice = `closing price`)
+head(etherum)
+```
+
+
+# Data Cleaning
+```{r}
+etherum <- etherum |> 
+  mutate(
+    MonthName = lubridate::month(date,label = TRUE),
+         Year = lubridate::year(date)
+  )
+
+etherum$MonthName <- fct_relevel(etherum$MonthName,levels(etherum$MonthName))
+```
+# Exploratory Data Analysis
+
+### Barplot showing Average price of Etherum In each year
+```{r}
+etherum |> 
+  group_by(Year, MonthName) |> 
+  summarize(Avg_ClosingPrice = mean(ClosingPrice)) |> 
+  ggplot(aes(Avg_ClosingPrice, MonthName, fill = MonthName)) +
+  geom_col() +
+  facet_wrap(. ~ Year) +
+  labs(
+    x = "Closing Price",
+    y = "Month",
+    title = "Average Monthly Closing Price of Etherum"
+  )
+```
+
+### Trend analysis of the change in closing price of etherum over the years
+```{r}
+etherum |> 
+  ggplot(aes(date,ClosingPrice)) +
+  geom_line() +
+  labs(
+    x = "Year",
+    y = "Closing Price",
+    title = "Daily Closing Price of Etherum over the Years"
+  )
+```
+
+# T-test analysis
+```{r}
+t.test(etherum$ClosingPrice)
+```
+
+# Time Series Analysis
+```{r}
+#Split data into training and testing data
+train_etherum <- etherum |> 
+  filter(Year < 2021)
+test_etherum <- etherum |> 
+  filter(Year > 2020)
+
+#convert training data to time series graphics
+ts_train_etherum <- ts(train_etherum[ ,"ClosingPrice"],
+                       frequency = 12,
+                       start = c(2017, 11),
+                       end = c(2020, 12))
+```
+
+### Time Series Decomposition
+```{r}
+#stl decompostion
+fit <- stl(ts_train_etherum, 
+           s.window = "periodic",
+           robust = TRUE)
+
+
+# Decompositon plots
+autoplot(fit) +
+  ggtitle("STL decompostion of Etherum Closing Prices")
+
+```
+
+```{r}
+#ARIMA modelling
+set.seed(2022)
+arima_fit <- auto.arima(ts_train_etherum,
+                        stepwise = F,
+                        approximation = F,
+                        D = 1)
+arima_fit
+```
+```{r}
+#check residuals
+checkresiduals(arima_fit)
+```
+
+```{r}
+# Forecast in the next two years
+arima_fit |> 
+  forecast(24) |> 
+  autoplot() +
+  ylab("Number Of Cases") +
+  xlab("Years")
+```
+
