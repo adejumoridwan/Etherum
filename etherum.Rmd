@@ -22,7 +22,7 @@ head(etherum)
 
 # Data Cleaning
 ```{r}
-etherum <- etherum |> 
+transformed_etherum <- etherum <- etherum |> 
   mutate(
     MonthName = lubridate::month(date,label = TRUE),
          Year = lubridate::year(date)
@@ -30,7 +30,20 @@ etherum <- etherum |>
 
 etherum$MonthName <- fct_relevel(etherum$MonthName,levels(etherum$MonthName))
 ```
+
+
 # Exploratory Data Analysis
+
+### Average price of Etherum for each year under each month
+```{r}
+etherum |> 
+  group_by(Year, MonthName) |> 
+  summarize(Avg_ClosingPrice = mean(ClosingPrice)) |>
+  pivot_wider(names_from = Year, values_from = Avg_ClosingPrice) |> 
+  arrange(MonthName) |> 
+  write_csv("etherum_w.csv")
+```
+
 
 ### Barplot showing Average price of Etherum In each year
 ```{r}
@@ -55,7 +68,7 @@ etherum |>
   labs(
     x = "Year",
     y = "Closing Price",
-    title = "Daily Closing Price of Etherum over the Years"
+    title = "Daily Closing Price of Ethereum from 2017 - 2022"
   )
 ```
 
@@ -65,6 +78,8 @@ t.test(etherum$ClosingPrice)
 ```
 
 # Time Series Analysis
+
+### Time Series Decomposition
 ```{r}
 #Split data into training and testing data
 train_etherum <- etherum |> 
@@ -74,13 +89,10 @@ test_etherum <- etherum |>
 
 #convert training data to time series graphics
 ts_train_etherum <- ts(train_etherum[ ,"ClosingPrice"],
-                       frequency = 12,
+                       frequency = 365,
                        start = c(2017, 11),
                        end = c(2020, 12))
-```
 
-### Time Series Decomposition
-```{r}
 #stl decompostion
 fit <- stl(ts_train_etherum, 
            s.window = "periodic",
@@ -90,29 +102,67 @@ fit <- stl(ts_train_etherum,
 # Decompositon plots
 autoplot(fit) +
   ggtitle("STL decompostion of Etherum Closing Prices")
-
 ```
+
 
 ```{r}
 #ARIMA modelling
 set.seed(2022)
 arima_fit <- auto.arima(ts_train_etherum,
                         stepwise = F,
-                        approximation = F,
-                        D = 1)
-arima_fit
-```
-```{r}
+                        approximation = F)
+print(arima_fit)
 #check residuals
-checkresiduals(arima_fit)
+print(checkresiduals(arima_fit))
+```
+
+# Forecasting using the log of Closing Prices, to remove autocorrelation.
+```{r}
+#take log of the closing prices
+transformed_etherum$ClosingPrice <- log(transformed_etherum$ClosingPrice)
+
+#Split data into training and testing data
+transformed_train_etherum <- transformed_etherum |> 
+  filter(Year < 2022)
+transformed_test_etherum <- transformed_etherum |> 
+  filter(Year > 2021)
+
+#convert training data to time series graphics
+ts_trans_train_etherum <- ts(train_etherum[ ,"ClosingPrice"],
+                       frequency = 365,
+                       start = c(2017, 11),
+                       end = c(2021, 12))
+
+#stl decompostion
+fit <- stl(ts_trans_train_etherum, 
+           s.window = "periodic",
+           robust = TRUE)
+
+
+# Decompositon plots
+autoplot(fit) +
+  ggtitle("STL decompostion of Etherum Closing Prices")
 ```
 
 ```{r}
+#ARIMA modelling
+set.seed(2022)
+arima_trans_fit <- auto.arima(ts_train_etherum,
+                        stepwise = F,
+                        approximation = F)
+print(arima_trans_fit)
+#check residuals
+print(checkresiduals(arima_trans_fit))
+```
+
+
+```{r}
 # Forecast in the next two years
-arima_fit |> 
-  forecast(24) |> 
+arima_trans_fit |> 
+  forecast() |> 
   autoplot() +
-  ylab("Number Of Cases") +
-  xlab("Years")
+  ylab("Closing Price") +
+  xlab("Year") +
+  ggtitle("Forecast of Closing Price from ARIMA(2,1,1)")
 ```
 
